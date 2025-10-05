@@ -1,0 +1,9 @@
+# Dockerfile.airflow
+FROM apache/airflow:2.8.2
+
+# Optional: install extra providers (uncomment if needed)
+# RUN pip install --no-cache-dir apache-airflow-providers-postgres
+
+# Health check (runs as airflow user by default)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1

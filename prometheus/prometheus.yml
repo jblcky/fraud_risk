@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s # How often to scrape targets
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'mlflow_metrics'
+    # Assuming you expose MLflow metrics via an exporter or custom path (Advanced)
+    # For now, this is a placeholder. Real MLOps requires exposing these metrics.
+    static_configs:
+      - targets: ['mlflow:5000']

@@ -23,6 +23,7 @@ services:
     restart: unless-stopped
 
   kafka:
+    container_name: kafka
     image: confluentinc/cp-kafka:7.4.1
     depends_on:
       - zookeeper
@@ -129,6 +130,7 @@ services:
 
   # --- 5. MONITORING ---
   prometheus:
+    container_name: prometheus
     image: prom/prometheus:v2.47.0
     ports:
       - "9091:9090"
@@ -141,6 +143,7 @@ services:
     restart: unless-stopped
 
   grafana:
+    container_name: grafana
     image: grafana/grafana:10.1.4
     ports:
       - "3000:3000"

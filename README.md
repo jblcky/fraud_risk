@@ -21,5 +21,4 @@ Perfect for showcasing cloud-native data engineering skills!
 git clone https://github.com/your-username/full_ml.git
 cd full_ml
 docker-compose up -d
-
 .

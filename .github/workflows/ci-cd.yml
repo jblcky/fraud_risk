@@ -115,6 +115,7 @@ on:
 env:
   PYTHON_VERSION: "3.8"
   IMAGE_NAME: "fraud-pipeline"
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
   DOCKERFILE: ./Dockerfile.api
   AIRFLOW_HOME: ./airflow_home
   # MLflow backend visible to the runner; we use the postgres service below

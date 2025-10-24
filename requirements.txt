@@ -1,0 +1,35 @@
+# Core data stack
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+mlflow
+cloudpickle
+
+# Spark + S3
+pyspark==3.4.1
+boto3
+pyarrow
+
+# Airflow
+apache-airflow
+apache-airflow-providers-amazon
+apache-airflow-providers-apache-spark
+apache-airflow-providers-postgres
+psycopg2-binary
+
+# Serving
+flask
+gunicorn
+requests
+minio
+
+# Utils
+python-dotenv
+loguru
+
+# Testing
+pytest
+flake8
+black

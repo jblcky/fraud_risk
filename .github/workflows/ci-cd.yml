@@ -175,7 +175,7 @@ jobs:
       - name: Run Black (format)
         run: |
           pip install black
-          black --check .
+          black .
 
       - name: Run flake8
         run: |

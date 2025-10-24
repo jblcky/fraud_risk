@@ -262,7 +262,7 @@ jobs:
       # Authenticate for GHCR if needed (two options)
       # Option A (recommended if your org allows): OIDC / GITHUB_TOKEN (no PAT)
       - name: Login to GHCR (OIDC approach - if allowed)
-        if: ${{ secrets.GITHUB_TOKEN }}
+        # if: ${{ secrets.GITHUB_TOKEN }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io

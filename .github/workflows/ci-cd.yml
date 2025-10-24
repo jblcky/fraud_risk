@@ -55,8 +55,9 @@ jobs:
 
       - name: Initialize Airflow DB
         run: |
+          export AIRFLOW_HOME=$PWD/airflow_home
           mkdir -p $AIRFLOW_HOME
-          export AIRFLOW_HOME=$AIRFLOW_HOME
+          export AIRFLOW__CORE__SQL_ALCHEMY_CONN=sqlite:///$AIRFLOW_HOME/airflow.db
           airflow db init
 
       - name: Wait for PostgreSQL

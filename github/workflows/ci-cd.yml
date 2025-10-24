@@ -2,9 +2,9 @@ name: CI/CD for Airflow + Spark ML Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master, main ]
   pull_request:
-    branches: [ main ]
+    branches: [ master, main ]
 
 env:
   PYTHON_VERSION: "3.8"

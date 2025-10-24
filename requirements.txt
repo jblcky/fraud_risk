@@ -8,7 +8,7 @@ mlflow
 cloudpickle
 
 # Spark + S3
-pyspark==3.4.1
+# pyspark==3.4.1
 boto3
 pyarrow
 

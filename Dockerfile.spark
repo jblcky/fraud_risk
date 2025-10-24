@@ -1,0 +1,25 @@
+# Build on the official Apache Spark image
+FROM apache/spark:3.4.1
+
+# Define environment variables for the Spark Jars (optional, for clarity)
+ENV SPARK_HOME=/opt/spark \
+    SPARK_JARS_DIR=/opt/spark/jars \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+USER root
+
+# --- 1. Install Java and Python Dependencies ---
+# Update and install necessary packages (like wget/curl if needed)
+RUN apt-get update && \
+    apt-get install -y wget python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install common Python libraries required for your jobs
+RUN pip install --no-cache-dir \
+    numpy pandas scipy pyarrow \
+    mlflow boto3 joblib \
+    scikit-learn xgboost lightgbm \
+    psycopg2-binary
+
+HEALTHCHECK CMD python3 -c "import pandas; import mlflow" || exit 1

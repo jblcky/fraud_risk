@@ -11,7 +11,7 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 # Write a sample DataFrame to MinIO
-df = spark.range(1000).toDF("id")
+df = spark.range(10).toDF("id")
 df.write.mode("overwrite").parquet("s3a://mlflow-bucket/demo/output.parquet")
 
 print("✅ Successfully wrote to MinIO!")

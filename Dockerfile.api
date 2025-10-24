@@ -1,0 +1,51 @@
+# ==========================================
+# 1️⃣ Base image — lightweight and secure
+# ==========================================
+FROM python:3.10-slim
+
+# ------------------------------------------
+# 2️⃣ Environment variables (clear, consistent)
+# ------------------------------------------
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    APP_HOME=/app \
+    PORT=8080
+
+# ------------------------------------------
+# 3️⃣ System dependencies (only what’s needed)
+# ------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        netcat-openbsd \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------
+# 4️⃣ Create app directory and non-root user
+# ------------------------------------------
+WORKDIR $APP_HOME
+RUN useradd -ms /bin/bash appuser
+COPY . $APP_HOME
+RUN chown -R appuser:appuser $APP_HOME
+
+# ------------------------------------------
+# 5️⃣ Install dependencies (pinned versions)
+# ------------------------------------------
+COPY requirements_docker_api.txt .
+RUN pip install --upgrade pip && pip install -r requirements_docker_api.txt
+
+# then switch to non-root user
+USER appuser
+
+# ------------------------------------------
+# 6️⃣ Expose port and add healthcheck
+# ------------------------------------------
+EXPOSE $PORT
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/health || exit 1
+
+# ------------------------------------------
+# 7️⃣ Start API server (FastAPI via Uvicorn)
+# ------------------------------------------
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

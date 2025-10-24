@@ -1,11 +1,14 @@
+# Dockerfile.mlflow
 FROM python:3.10-slim
 
-RUN pip install mlflow==2.8.0 boto3
+# Install MLflow, the S3/MinIO client (boto3), and the Postgres client (psycopg2)
+# psycopg2 is required because your docker-compose uses a Postgres backend store.
+RUN pip install mlflow==2.8.0 boto3 psycopg2-binary
 
 EXPOSE 5000
 
+# Simply run the MLflow server without specifying the backend/artifact paths here.
+# These paths are defined in docker-compose.yaml via environment variables.
 CMD ["mlflow", "server", \
      "--host", "0.0.0.0", \
-     "--port", "5000", \
-     "--backend-store-uri", "sqlite:///mlflow.db", \
-     "--default-artifact-root", "s3://mlflow-bucket/"]
+     "--port", "5000"]

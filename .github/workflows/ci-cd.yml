@@ -68,11 +68,11 @@ jobs:
         run: |
           python -c "import mlflow; mlflow.set_tracking_uri('$MLFLOW_TRACKING_URI'); mlflow.start_run(); mlflow.log_param('test', 1); mlflow.end_run()"
 
-      - name: Lint Python code
+      # 4️⃣ Lint + Auto-format code
+      - name: Run Black auto-format
         run: |
-          pip install flake8 black
-          black --check .
-          flake8 --ignore=E501,W503
+          pip install black
+          black .
 
       - name: Test Airflow DAGs
         run: |

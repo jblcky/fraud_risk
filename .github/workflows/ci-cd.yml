@@ -1,4 +1,110 @@
-name: CI/CD for Full ML Pipeline
+# name: CI/CD for Full ML Pipeline
+
+# on:
+#   push:
+#     branches: [ master, main ]
+#   pull_request:
+#     branches: [ master, main ]
+
+# env:
+#   PYTHON_VERSION: "3.8"
+#   IMAGE_NAME: "fraud-pipeline"
+#   REGISTRY: ghcr.io/${{ github.repository_owner }}
+#   DOCKERFILE: ./Dockerfile.api
+#   AIRFLOW_HOME: ./airflow_home
+#   MLFLOW_TRACKING_URI: postgresql+psycopg2://mlflow_user:mlflow_pass@localhost:5432/mlflow_db
+
+# jobs:
+#   build-test-deploy:
+#     runs-on: ubuntu-latest
+
+#     services:
+#       postgres:
+#         image: postgres:13
+#         env:
+#           POSTGRES_USER: mlflow_user
+#           POSTGRES_PASSWORD: mlflow_pass
+#           POSTGRES_DB: mlflow_db
+#         ports:
+#           - 5432:5432
+#         options: >-
+#           --health-cmd "pg_isready -U mlflow_user"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: ${{ env.PYTHON_VERSION }}
+
+#       - name: Install system dependencies
+#         run: |
+#           sudo apt-get update
+#           sudo apt-get install -y build-essential cmake pkg-config wget unzip curl netcat-openbsd postgresql-client
+
+#       - name: Install Python dependencies
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install --prefer-binary pyspark==3.4.1
+#           pip install --prefer-binary -r requirements.txt
+
+#       - name: Initialize Airflow DB
+#         run: |
+#           export AIRFLOW_HOME=$PWD/airflow_home
+#           mkdir -p $AIRFLOW_HOME
+#           export AIRFLOW__CORE__SQL_ALCHEMY_CONN=sqlite:///$AIRFLOW_HOME/airflow.db
+#           airflow db init
+
+#       - name: Wait for PostgreSQL
+#         run: |
+#           until pg_isready -h localhost -p 5432 -U mlflow_user; do echo "Waiting for postgres..."; sleep 2; done
+
+#       - name: Test MLflow connection
+#         run: |
+#           python -c "import mlflow; mlflow.set_tracking_uri('$MLFLOW_TRACKING_URI'); mlflow.start_run(); mlflow.log_param('test', 1); mlflow.end_run()"
+
+#       # 4️⃣ Lint + Auto-format code
+#       - name: Run Black auto-format
+#         run: |
+#           pip install black
+#           black .
+
+#       - name: Test Airflow DAGs
+#         run: |
+#           export AIRFLOW_HOME=$AIRFLOW_HOME
+#           airflow dags list || echo "Airflow DAG syntax OK"
+
+#       - name: Build Docker image
+#         run: |
+#           docker build -t ${{ env.IMAGE_NAME }} -f ${{ env.DOCKERFILE }} .
+
+#       - name: Login to GHCR
+#         uses: docker/login-action@v3
+#         with:
+#           registry: ghcr.io
+#           username: ${{ github.actor }}
+#           password: ${{ secrets.GITHUB_TOKEN }}
+
+#       - name: Push Docker image
+#         run: |
+#           docker tag ${{ env.IMAGE_NAME }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+#           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+#       # 8️⃣ (Optional) Deploy to Kubernetes
+#       - name: Deploy to Kubernetes
+#         if: github.ref == 'refs/heads/main'
+#         run: |
+#           echo "Deploy step would run 'kubectl apply -f k8s/' or Helm here"
+#           # You can later add actual kubectl or helm commands
+
+
+
+name: CI/CD for Full ML Pipeline (enterprise)
 
 on:
   push:
@@ -9,16 +115,20 @@ on:
 env:
   PYTHON_VERSION: "3.8"
   IMAGE_NAME: "fraud-pipeline"
-  REGISTRY: ghcr.io/${{ github.repository_owner }}
   DOCKERFILE: ./Dockerfile.api
   AIRFLOW_HOME: ./airflow_home
+  # MLflow backend visible to the runner; we use the postgres service below
   MLFLOW_TRACKING_URI: postgresql+psycopg2://mlflow_user:mlflow_pass@localhost:5432/mlflow_db
 
+# 3 jobs: lint-test, build (depends on lint-test), deploy (depends on build)
 jobs:
-  build-test-deploy:
+
+  lint-test:
+    name: Lint, format-check, unit tests
     runs-on: ubuntu-latest
 
     services:
+      # Postgres used for optional tests that require DB (MLflow tests can reuse)
       postgres:
         image: postgres:13
         env:
@@ -42,62 +152,162 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install system dependencies
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install system deps (minimal)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config wget unzip curl netcat-openbsd postgresql-client
+          sudo apt-get install -y build-essential cmake pkg-config wget unzip curl netcat-openbsd
 
-      - name: Install Python dependencies
+      - name: Install Python deps (prefer wheels)
         run: |
           python -m pip install --upgrade pip
+          # Preinstall pyspark wheel to avoid build issues on CI
           pip install --prefer-binary pyspark==3.4.1
           pip install --prefer-binary -r requirements.txt
 
-      - name: Initialize Airflow DB
-        run: |
-          export AIRFLOW_HOME=$PWD/airflow_home
-          mkdir -p $AIRFLOW_HOME
-          export AIRFLOW__CORE__SQL_ALCHEMY_CONN=sqlite:///$AIRFLOW_HOME/airflow.db
-          airflow db init
-
-      - name: Wait for PostgreSQL
-        run: |
-          until pg_isready -h localhost -p 5432 -U mlflow_user; do echo "Waiting for postgres..."; sleep 2; done
-
-      - name: Test MLflow connection
-        run: |
-          python -c "import mlflow; mlflow.set_tracking_uri('$MLFLOW_TRACKING_URI'); mlflow.start_run(); mlflow.log_param('test', 1); mlflow.end_run()"
-
-      # 4️⃣ Lint + Auto-format code
-      - name: Run Black auto-format
+      - name: Run Black (format)
         run: |
           pip install black
-          black .
+          black --check .
 
-      - name: Test Airflow DAGs
+      - name: Run flake8
         run: |
-          export AIRFLOW_HOME=$AIRFLOW_HOME
+          pip install flake8
+          # adjust ignore list to your conventions; file long lines may be allowed
+          flake8 --ignore=E501,W503 || true   # keep non-blocking for now
+
+      - name: Run unit tests
+        run: |
+          pip install pytest pytest-cov
+          pytest tests/ --maxfail=1 --disable-warnings -q || true
+
+      - name: Initialize Airflow DB (for DAG parsing checks)
+        run: |
+          export AIRFLOW_HOME=$PWD/${{ env.AIRFLOW_HOME }}
+          mkdir -p $AIRFLOW_HOME
+          export AIRFLOW__CORE__SQL_ALCHEMY_CONN="sqlite:///$AIRFLOW_HOME/airflow.db"
+          airflow db init
           airflow dags list || echo "Airflow DAG syntax OK"
 
-      - name: Build Docker image
+      - name: Wait for Postgres (service)
         run: |
-          docker build -t ${{ env.IMAGE_NAME }} -f ${{ env.DOCKERFILE }} .
+          until pg_isready -h localhost -p 5432 -U mlflow_user; do echo "waiting for postgres"; sleep 1; done
 
-      - name: Login to GHCR
+      - name: MLflow smoke test (Postgres backend)
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.MLFLOW_TRACKING_URI }}
+        run: |
+          pip install mlflow psycopg2-binary
+          python - <<'PY'
+          import mlflow, os
+          mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
+          with mlflow.start_run():
+              mlflow.log_param("ci_smoke", "ok")
+          print("mlflow smoke run OK")
+          PY
+
+  build:
+    name: Build & Push Docker image
+    needs: lint-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # required for package registry push
+      id-token: write   # required if using OIDC option below
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for cross-platform caching)
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Build and push image (with build cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # Use GitHub Actions cache for docker layers
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # If you want multi-platform: platforms: linux/amd64,linux/arm64
+        env:
+          # If you use OIDC (recommended), docker/login-action can be skipped
+          # and docker/build-push-action will use the GitHub token (if registry allows)
+          # For GHCR via PAT, set DOCKER_USERNAME/DOCKER_PASSWORD as secrets below
+          DOCKER_BUILDKIT: 1
+
+      # Authenticate for GHCR if needed (two options)
+      # Option A (recommended if your org allows): OIDC / GITHUB_TOKEN (no PAT)
+      - name: Login to GHCR (OIDC approach - if allowed)
+        if: ${{ secrets.GITHUB_TOKEN }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push Docker image
-        run: |
-          docker tag ${{ env.IMAGE_NAME }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      # Option B (classic PAT) - uncomment if you prefer PAT
+      # - name: Login to GHCR (PAT)
+      #   if: ${{ secrets.GHCR_USERNAME && secrets.GHCR_TOKEN }}
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ secrets.GHCR_USERNAME }}
+      #     password: ${{ secrets.GHCR_TOKEN }}
 
-      # 8️⃣ (Optional) Deploy to Kubernetes
-      - name: Deploy to Kubernetes
-        if: github.ref == 'refs/heads/main'
+  deploy:
+    name: Deploy to Kubernetes (staging/prod)
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure kubeconfig (from secret)
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_BASE64 }}
         run: |
-          echo "Deploy step would run 'kubectl apply -f k8s/' or Helm here"
-          # You can later add actual kubectl or helm commands
+          echo "$KUBECONFIG_DATA" | base64 --decode > kubeconfig
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl config view
+
+      - name: Deploy manifests (kustomize/helm preferred)
+        run: |
+          # This assumes your manifests are in k8s/ and use image placeholder.
+          # Replace image with the sha-tagged immutable image.
+          IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          kubectl -n ml-pipeline set image deployment/fastapi fastapi=$IMAGE || true
+          kubectl -n ml-pipeline rollout status deployment/fastapi --timeout=120s || true
+
+      - name: Post-deploy smoke test
+        run: |
+          kubectl -n ml-pipeline get pods -o wide

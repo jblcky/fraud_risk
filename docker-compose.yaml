@@ -301,7 +301,7 @@ services:
     ports:
       - "8080:8080" # API exposed on port 8080
     volumes:
-      - ./api:/app # Map your local 'api' directory to the container
+      - ./api:/app/api # Map your local 'api' directory to the container
     # Assumes your FastAPI application is in 'api/app.py' with an object 'app'
     restart: unless-stopped
     healthcheck:

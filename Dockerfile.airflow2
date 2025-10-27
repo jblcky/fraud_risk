@@ -21,7 +21,11 @@ ENV PATH="$JAVA_HOME/bin:$PATH"
 # Switch back to airflow user
 USER airflow
 
-RUN python -m pip install --upgrade pip
+# Upgrade pip safely
+RUN pip install --no-cache-dir --upgrade "pip<24.1" "setuptools<70"
+
+RUN pip install --no-cache-dir \
+    "connexion[swagger-ui]"
 
 # Install Airflow providers first
 RUN pip install --no-cache-dir \
@@ -30,7 +34,8 @@ RUN pip install --no-cache-dir \
     apache-airflow-providers-apache-spark
 
 # Install Spark + ML libraries separately
-RUN pip install --no-cache-dir pyspark==3.4.1 mlflow boto3
+RUN pip install --no-cache-dir --upgrade-strategy only-if-needed \
+    pyspark==3.4.1 mlflow boto3
 
 # This step is often more stable when isolated, as they require gfortran.
 
@@ -50,7 +55,16 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
 # Default command: run webserver + scheduler in one container
-CMD ["bash", "-c", "airflow db upgrade && \
-                    airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true && \
-                    airflow webserver & \
-                    airflow scheduler"]
+# CMD ["bash", "-c", "airflow db init && \
+#                     airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true && \
+#                     airflow webserver & \
+#                     airflow scheduler"]
+
+# Start webserver + scheduler in single container
+CMD ["bash", "-c", "\
+    airflow db init && \
+    if ! airflow users list 2>/dev/null | grep -q 'admin'; then \
+        airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com; \
+    fi && \
+    echo 'Starting Airflow Scheduler...' && airflow scheduler & \
+    echo 'Starting Airflow Webserver...' && exec airflow webserver -p 8080"]

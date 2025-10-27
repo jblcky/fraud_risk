@@ -10,7 +10,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     APP_HOME=/app \
-    PORT=8080
+    PORT=8080 \
+    PYTHONPATH=/app
 
 # ------------------------------------------
 # 3️⃣ System dependencies (only what’s needed)
